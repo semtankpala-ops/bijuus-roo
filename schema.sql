@@ -1,8 +1,19 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $$
+BEGIN
+  CREATE TYPE user_role AS ENUM ('MEMBRO','LIDER','ADMIN');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
 
-CREATE TYPE user_role AS ENUM ('MEMBRO','LIDER','ADMIN');
-CREATE TYPE account_status AS ENUM ('PENDENTE','ATIVA','BLOQUEADA');
-
+DO $$
+BEGIN
+  CREATE TYPE account_status AS ENUM ('PENDENTE','ATIVA','BLOQUEADA');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
 CREATE TABLE IF NOT EXISTS usuarios (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(40) NOT NULL UNIQUE,
