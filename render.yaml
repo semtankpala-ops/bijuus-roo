@@ -1,0 +1,36 @@
+databases:
+  - name: bijuus-roo-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    databaseName: bijuus_roo
+    user: bijuus
+    diskSizeGB: 1
+
+services:
+  - name: bijuus-roo
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bijuus-roo-db
+          property: connectionString
+      - key: DB_SSL
+        value: "false"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
