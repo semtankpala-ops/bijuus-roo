@@ -282,7 +282,9 @@ app.get('/api/medals/history',auth,async(req,res)=>{
 });
 
 app.use(express.static(path.join(__dirname,'public')));
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
-
+app.use((req,res,next)=>{
+  if(req.method==='GET') return res.sendFile(path.join(__dirname,'public','index.html'));
+  next();
+});
 app.listen(port,()=>console.log(`Bijuus Roo V26 listening on http://localhost:${port}`));
 process.on('SIGTERM',async()=>{await pool.end();process.exit(0)});
