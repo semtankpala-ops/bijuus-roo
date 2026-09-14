@@ -5,7 +5,6 @@ databases:
     postgresMajorVersion: "16"
     databaseName: bijuus_roo
     user: bijuus
-    diskSizeGB: 1
 
 services:
   - name: bijuus-roo
