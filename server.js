@@ -1505,6 +1505,47 @@ app.get(
     }
   }
 );
+app.get(
+  '/api/members/:id/status',
+  auth,
+  requireRole('LIDER', 'ADMIN'),
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `
+        SELECT
+          s.id,
+          s.data_registro,
+          s.cp,
+          s.dano_pve,
+          s.dano_pvp,
+          s.status,
+          s.observacao,
+          s.ifp,
+          s.ifp_versao,
+          p.nick,
+          p.classe,
+          p.nivel
+        FROM status_snapshots s
+        JOIN personagens p
+          ON p.id = s.personagem_id
+        WHERE p.usuario_id = $1
+        ORDER BY s.data_registro DESC
+        `,
+        [req.params.id]
+      );
+
+      res.json(rows);
+    } catch (e) {
+      console.error(e);
+
+      res.status(500).json({
+        error:
+          'Não foi possível carregar os status do membro.'
+      });
+    }
+  }
+);
 
 app.post(
   '/api/admin/users/:id/approve',
