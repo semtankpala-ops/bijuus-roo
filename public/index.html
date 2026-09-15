@@ -161,8 +161,64 @@ async function renderAllAsync(){renderAll();try{const [dash,rank]=await Promise.
 function renderAll(){const d=db(),u=d.users.find(x=>x.id===session.id),s=latest();document.getElementById('dashMembers').textContent=d.users.filter(x=>x.status_conta==='ATIVA').length;document.getElementById('dashPending').textContent=d.users.filter(x=>x.status_conta==='PENDENTE').length;document.getElementById('dashSnapshots').textContent=d.snapshots.length;document.getElementById('dashCP').textContent=s&&s.CP?fmt(s.CP):'—';document.getElementById('myCharacter').innerHTML=u?.personagem?`<b>${esc(u.personagem.nick)}</b><br><span class="tag">${esc(u.personagem.classe)}</span><span class="tag">Nível ${u.personagem.nivel}</span>`:'<div class="empty">Nenhum personagem cadastrado.</div>';document.getElementById('completion').style.width=(u?.personagem&&s?100:30)+'%';renderHistory(d);renderMembers(d);renderApprovals(d);renderCompare(d);renderMedals(d);renderMedalHistory(d);renderRanking(d);renderSecurity();const pe=(d.pvp||[]).filter(x=>x.status==='CONFIRMADO').slice(-1)[0];if(pe) {document.getElementById('pvpEventBox').innerHTML=`<b>${esc(pe.name)}</b><br><span class="ok">✓ EVENTO CONFIRMADO • ${esc(formatLabel(pe.format))}</span>`;renderPvpRuntime(pe,d)}}
 function renderHistory(){const a=serverSnapshots||[];document.getElementById('history').innerHTML=a.length?`<table><tr><th>Data</th><th>CP</th><th>Dano PvP</th><th>IFP</th><th>Versão</th></tr>${a.map(x=>`<tr><td>${new Date(x.data_registro).toLocaleString('pt-BR')}</td><td>${fmt(x.cp)}</td><td>${fmt(x.dano_pvp)}</td><td>${x.ifp??'—'}</td><td>${x.ifp_versao}</td></tr>`).join('')}</table>`:`<div class="empty">Nenhum snapshot registrado ainda.</div>`}
 function renderMembers(d){if(session.cargo==='MEMBRO'){document.getElementById('members').innerHTML='<div class="empty">Acesso restrito.</div>';return}const rows=d.users.filter(u=>u.status_conta==='ATIVA').map(u=>{const s=latest(u.id);return `<tr><td><b>${esc(u.personagem?.nick||'Sem personagem')}</b></td><td>${esc(u.personagem?.classe||'—')}</td><td>${s?.CP?fmt(s.CP):'—'}</td><td><span class="ifp-chip">${s?.ifp??'—'}</span></td><td>${s?profileForClass(u.personagem?.classe||''):'—'}</td><td class="ok">ATIVA</td></tr>`}).join('');document.getElementById('members').innerHTML=rows?`<div class="tablewrap"><table><tr><th>Nick</th><th>Classe</th><th>CP</th><th>IFP</th><th>Perfil</th><th>Conta</th></tr>${rows}</table></div>`:'<div class="empty">Nenhum membro ativo.</div>'}
-function renderApprovals(d){if(session.cargo==='MEMBRO'){document.getElementById('approvals').innerHTML='<div class="empty">Acesso restrito.</div>';return}const pending=d.users.filter(u=>u.status_conta==='PENDENTE');if(!pending.length){document.getElementById('approvals').innerHTML='<div class="empty">Nenhuma conta pendente.</div>';return}document.getElementById('approvals').innerHTML=`<div class="tablewrap"><table><tr><th>Usuário</th><th>E-mail</th><th>Nick</th><th>Classe</th><th>Ação</th></tr>${pending.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.email)}</td><td>${esc(u.personagem?.nick||'—')}</td><td>${esc(u.personagem?.classe||'—')}</td><td><button class="btn primary" onclick="approve('${u.id}')">Aprovar</button> <button class="btn danger" onclick="blockUser('${u.id}')">Bloquear</button></td></tr>`).join('')}</table></div>`}
-function approve(id){const d=db(),u=d.users.find(x=>x.id===id);if(!u)return;u.status_conta='ATIVA';saveDb(d);toast('Conta aprovada.');renderAll()}
+async function renderApprovals(d){
+  const box = document.getElementById('approvals');
+  if(!box) return;
+
+  if(session.cargo === 'MEMBRO'){
+    box.innerHTML = '<div class="empty">Acesso restrito.</div>';
+    return;
+  }
+
+  try{
+    const rows = await api('/members');
+    const pending = (rows || []).filter(
+      u => u.status_conta === 'PENDENTE'
+    );
+
+    if(!pending.length){
+      box.innerHTML =
+        '<div class="empty">Nenhuma conta pendente.</div>';
+      return;
+    }
+
+    box.innerHTML =
+      '<div class="tablewrap"><table>' +
+      '<tr>' +
+      '<th>Usuário</th>' +
+      '<th>E-mail</th>' +
+      '<th>Nick</th>' +
+      '<th>Classe</th>' +
+      '<th>Ação</th>' +
+      '</tr>' +
+      pending.map(u =>
+        '<tr>' +
+        '<td>' + esc(u.username || '') + '</td>' +
+        '<td>' + esc(u.email || '') + '</td>' +
+        '<td>' + esc(u.nick || '—') + '</td>' +
+        '<td>' + esc(u.classe || '—') + '</td>' +
+        '<td>' +
+        '<button class="btn primary" ' +
+        'onclick="approveServer(\'' + u.id + '\')">' +
+        'Aprovar' +
+        '</button> ' +
+        '<button class="btn danger" ' +
+        'onclick="blockServer(\'' + u.id + '\')">' +
+        'Bloquear' +
+        '</button>' +
+        '</td>' +
+        '</tr>'
+      ).join('') +
+      '</table></div>';
+
+  }catch(e){
+    box.innerHTML =
+      '<div class="empty">' +
+      'Erro ao carregar contas pendentes: ' +
+      esc(e.message || 'erro desconhecido') +
+      '</div>';
+  }
+}function approve(id){const d=db(),u=d.users.find(x=>x.id===id);if(!u)return;u.status_conta='ATIVA';saveDb(d);toast('Conta aprovada.');renderAll()}
 function blockUser(id){const d=db(),u=d.users.find(x=>x.id===id);if(!u)return;u.status_conta='BLOQUEADA';saveDb(d);toast('Conta bloqueada.');renderAll()}
 function renderCompare(d){if(session.cargo==='MEMBRO'){document.getElementById('compare').innerHTML='<div class="empty">Acesso restrito.</div>';return}const users=d.users.filter(u=>u.status_conta==='ATIVA'&&u.personagem);if(users.length<2){document.getElementById('compare').innerHTML='<div class="empty">Cadastre pelo menos dois personagens para comparar.</div>';return}document.getElementById('compare').innerHTML='<div class="formgrid"><div class="field"><label>Personagem A</label><select id="cmpA" onchange="renderCompareTable()">'+users.map(u=>'<option value="'+u.id+'">'+esc(u.personagem.nick)+'</option>').join('')+'</select></div><div class="field"><label>Personagem B</label><select id="cmpB" onchange="renderCompareTable()">'+users.map((u,i)=>'<option value="'+u.id+'" '+(i===1?'selected':'')+'>'+esc(u.personagem.nick)+'</option>').join('')+'</select></div></div><div id="compareTable" class="section"></div>';renderCompareTable()}
 function renderCompareTable(){const d=db(),a=d.users.find(x=>x.id===document.getElementById('cmpA')?.value),b=d.users.find(x=>x.id===document.getElementById('cmpB')?.value);if(!a||!b)return;const sa=latest(a.id),sb=latest(b.id);const keys=[['CP',sa?.CP,sb?.CP],['Dano PvP',sa?.DANO_PVP,sb?.DANO_PVP],['Dano PvE',sa?.DANO_PVE,sb?.DANO_PVE]].concat(COMMON.map(k=>[k,sa?.status?.[k],sb?.status?.[k]])).concat(ADVANCED.map(k=>[k,sa?.status?.[k],sb?.status?.[k]])).concat(SPECIAL.map(k=>[k,sa?.status?.[k],sb?.status?.[k]]));document.getElementById('compareTable').innerHTML='<div class="tablewrap"><table><tr><th>Atributo</th><th>'+esc(a.personagem.nick)+'</th><th>'+esc(b.personagem.nick)+'</th><th>Maior</th></tr>'+keys.map(r=>{const av=r[1]??0,bv=r[2]??0;return '<tr><td>'+esc(r[0])+'</td><td>'+(av?fmt(av):'—')+'</td><td>'+(bv?fmt(bv):'—')+'</td><td>'+(av>bv?'<span class="ok">A</span>':bv>av?'<span class="ok">B</span>':'—')+'</td></tr>'}).join('')+'</table></div>'}
