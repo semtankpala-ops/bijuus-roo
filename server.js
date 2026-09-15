@@ -211,26 +211,125 @@ app.post('/api/pvp/events',auth,requireParticipantRole,async(req,res)=>{
     if(rows.length>n*size)return res.status(400).json({error:'O tamanho preferencial informado não comporta todos os participantes.'});
     const players=rows.map(x=>({...x,ifp:Number(x.ifp||0),funcao:profileForClass(x.classe),support_key:supportKeyForClass(x.classe)}));
     const preview=buildBalancedTeams(players,n,size);
-    const client=await pool.connect();
-    try{await client.query('BEGIN');
-      const ev=await client.query(`INSERT INTO pvp_eventos(nome,descricao,status,ifp_versao,premiacao) VALUES($1,$2,'RASCUNHO','2.0',$3) RETURNING *`,[nome,`Formato: ${format}; times: ${n}; tamanho preferencial: ${size}`,JSON.stringify(premiacao)]);
-      const event=ev.rows[0], teams=[];
-      for(const m of players){
-        await client.query(`INSERT INTO pvp_participantes(evento_id,personagem_id,ifp_congelado,funcao_congelada) VALUES($1,$2,$3,$4) ON CONFLICT (evento_id,personagem_id) DO NOTHING`,[event.id,m.id,m.ifp,m.funcao]);
-      }
-      for(let i=0;i<preview.length;i++){
-        const tr=await client.query(`INSERT INTO pvp_times(evento_id,nome,ordem) VALUES($1,$2,$3) RETURNING *`,[event.id,preview[i].name,i+1]);
-        const t={...tr.rows[0],members:[]}; teams.push(t);
-        for(const m of preview[i].members){
-          await client.query(`INSERT INTO pvp_time_membros(time_id,personagem_id,ifp_congelado,funcao_congelada,suporte_chave) VALUES($1,$2,$3,$4,$5)`,[t.id,m.id,m.ifp,m.funcao,m.support_key]);
-          t.members.push({id:m.id,nick:m.nick,classe:m.classe,ifp:m.ifp,funcao:m.funcao,suporte_chave:m.support_key,snapshot_id:m.snapshot_id});
-        }
-      }
-      const inserted=buildMatchesServer(event,teams);
-      for(const m of inserted) await client.query(`INSERT INTO pvp_partidas(evento_id,rodada,numero,time_a_id,time_b_id) VALUES($1,$2,$3,$4,$5)`,[event.id,m.round,m.number,m.a,m.b]);
-      await client.query(`INSERT INTO auditoria(usuario_id,acao,alvo,detalhes) VALUES($1,'PVP_PREVIA',$2,$3)`,[req.user.user_id,event.id,JSON.stringify({teams:n,teamSize:size,format})]);
-      await client.query('COMMIT');res.status(201).json({event,teams});
-    }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+    if(!req.user.personagem_id){
+  return res.status(400).json({
+    error:'Sua conta não possui um personagem cadastrado.'
+  });
+}
+
+const personagemId=req.user.personagem_id;
+const nivelFinal=Math.max(1,Math.min(99,Number(nivel)||99));
+const cpFinal=Number(cp);
+const danoPveFinal=Number(dano_pve)||0;
+const danoPvpFinal=Number(dano_pvp)||0;
+
+if(!Number.isFinite(cpFinal)){
+  return res.status(400).json({error:'CP inválido.'});
+}
+
+const statusFinal={
+  ...(status && typeof status==='object' ? status : {}),
+  DANO_PVP:danoPvpFinal
+};
+
+const client=await pool.connect();
+
+try{
+  await client.query('BEGIN');
+
+  const personagem=await client.query(
+    `SELECT id
+       FROM personagens
+      WHERE id=$1 AND usuario_id=$2`,
+    [personagemId,req.user.user_id]
+  );
+
+  if(!personagem.rows[0]){
+    throw new Error('Personagem não encontrado para esta conta.');
+  }
+
+  await client.query(
+    `UPDATE personagens
+        SET nick=$1,
+            classe=$2,
+            nivel=$3,
+            atualizado_em=now()
+      WHERE id=$4 AND usuario_id=$5`,
+    [nick,classe,nivelFinal,personagemId,req.user.user_id]
+  );
+
+  const r=await client.query(
+    `INSERT INTO status_snapshots
+      (personagem_id,cp,dano_pve,dano_pvp,status,observacao,ifp,ifp_versao)
+     VALUES($1,$2,$3,$4,$5,$6,NULL,'2.0')
+     RETURNING *`,
+    [
+      personagemId,
+      cpFinal,
+      danoPveFinal,
+      danoPvpFinal,
+      statusFinal,
+      observacao
+    ]
+  );
+
+  const cohort=await client.query(`
+    SELECT DISTINCT ON (s.personagem_id)
+      COALESCE(s.status,'{}'::jsonb) AS status,
+      COALESCE(s.dano_pvp,0) AS dano_pvp,
+      p.classe
+    FROM status_snapshots s
+    JOIN personagens p ON p.id=s.personagem_id
+    JOIN usuarios u ON u.id=p.usuario_id
+    WHERE u.status_conta='ATIVA'
+    ORDER BY s.personagem_id,s.data_registro DESC
+  `);
+
+  const ifp=calculateIFP(
+    statusFinal,
+    classe,
+    (cohort.rows||[]).map(x=>({
+      status:x.status||{},
+      dano_pvp:Number(x.dano_pvp||0),
+      classe:x.classe
+    }))
+  );
+
+  const updated=await client.query(
+    `UPDATE status_snapshots
+        SET ifp=$1,
+            ifp_versao='2.0'
+      WHERE id=$2
+      RETURNING *`,
+    [ifp,r.rows[0].id]
+  );
+
+  await client.query(
+    `INSERT INTO auditoria(usuario_id,acao,alvo,detalhes)
+     VALUES($1,'STATUS_SNAPSHOT',$2,$3)`,
+    [
+      req.user.user_id,
+      String(personagemId),
+      JSON.stringify({
+        ifp,
+        ifp_versao:'2.0'
+      })
+    ]
+  );
+
+  await client.query('COMMIT');
+
+  res.status(201).json(updated.rows[0]);
+
+}catch(e){
+  await client.query('ROLLBACK');
+  console.error('ERRO AO SALVAR STATUS:',e);
+  res.status(500).json({
+    error:e.message || 'Não foi possível salvar o snapshot.'
+  });
+}finally{
+  client.release();
+}
   }catch(e){console.error(e);res.status(500).json({error:'Não foi possível gerar o evento PvP.'});}
 });
 
