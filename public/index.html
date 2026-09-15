@@ -173,8 +173,62 @@ function calculateIFP(status,cl,cohort){
 async function renderAllAsync(){renderAll();try{const [dash,rank]=await Promise.all([api('/dashboard'),api('/ranking/cp')]);if(dash?.counts){document.getElementById('dashMembers').textContent=dash.counts.ativos;document.getElementById('dashPending').textContent=dash.counts.pendentes;document.getElementById('dashSnapshots').textContent=dash.latest?'1+':'0'}if(rank){document.getElementById('rankingTable').innerHTML=rank.length?'<div class="tablewrap"><table><tr><th>#</th><th>Membro</th><th>Classe</th><th>CP</th></tr>'+rank.map(r=>'<tr><td><b>'+r.posicao+'</b></td><td>'+esc(r.nick)+'</td><td>'+esc(r.classe)+'</td><td><b>'+fmt(r.cp)+'</b></td></tr>').join('')+'</table></div>':'<div class="empty">O ranking aparecerá após os cadastros.</div>'}}catch(e){console.warn(e)}}
 function renderAll(){const d=db(),u=d.users.find(x=>x.id===session.id),s=latest();document.getElementById('dashMembers').textContent=d.users.filter(x=>x.status_conta==='ATIVA').length;document.getElementById('dashPending').textContent=d.users.filter(x=>x.status_conta==='PENDENTE').length;document.getElementById('dashSnapshots').textContent=d.snapshots.length;document.getElementById('dashCP').textContent=s&&s.CP?fmt(s.CP):'—';document.getElementById('myCharacter').innerHTML=u?.personagem?`<b>${esc(u.personagem.nick)}</b><br><span class="tag">${esc(u.personagem.classe)}</span><span class="tag">Nível ${u.personagem.nivel}</span>`:'<div class="empty">Nenhum personagem cadastrado.</div>';document.getElementById('completion').style.width=(u?.personagem&&s?100:30)+'%';renderHistory(d);renderMembers(d);renderApprovals(d);renderCompare(d);renderMedals(d);renderMedalHistory(d);renderRanking();;renderSecurity();const pe=(d.pvp||[]).filter(x=>x.status==='CONFIRMADO').slice(-1)[0];if(pe) {document.getElementById('pvpEventBox').innerHTML=`<b>${esc(pe.name)}</b><br><span class="ok">✓ EVENTO CONFIRMADO • ${esc(formatLabel(pe.format))}</span>`;renderPvpRuntime(pe,d)}}
 function renderHistory(){const a=serverSnapshots||[];document.getElementById('history').innerHTML=a.length?`<table><tr><th>Data</th><th>CP</th><th>Dano PvP</th><th>IFP</th><th>Versão</th></tr>${a.map(x=>`<tr><td>${new Date(x.data_registro).toLocaleString('pt-BR')}</td><td>${fmt(x.cp)}</td><td>${fmt(x.dano_pvp)}</td><td>${x.ifp??'—'}</td><td>${x.ifp_versao}</td></tr>`).join('')}</table>`:`<div class="empty">Nenhum snapshot registrado ainda.</div>`}
-function renderMembers(d){if(session.cargo==='MEMBRO'){document.getElementById('members').innerHTML='<div class="empty">Acesso restrito.</div>';return}const rows=d.users.filter(u=>u.status_conta==='ATIVA').map(u=>{const s=latest(u.id);return `<tr><td><b>${esc(u.personagem?.nick||'Sem personagem')}</b></td><td>${esc(u.personagem?.classe||'—')}</td><td>${s?.CP?fmt(s.CP):'—'}</td><td><span class="ifp-chip">${s?.ifp??'—'}</span></td><td>${s?profileForClass(u.personagem?.classe||''):'—'}</td><td class="ok">ATIVA</td></tr>`}).join('');document.getElementById('members').innerHTML=rows?`<div class="tablewrap"><table><tr><th>Nick</th><th>Classe</th><th>CP</th><th>IFP</th><th>Perfil</th><th>Conta</th></tr>${rows}</table></div>`:'<div class="empty">Nenhum membro ativo.</div>'}
-async function renderApprovals(d){
+async function renderMembers(d){
+  const box=document.getElementById('members');
+  if(!box)return;
+
+  if(session.cargo==='MEMBRO'){
+    box.innerHTML='<div class="empty">Acesso restrito.</div>';
+    return;
+  }
+
+  try{
+    const rows=await api('/members');
+
+    const ativos=(rows||[]).filter(
+      u=>u.status_conta==='ATIVA' && (u.nick || u.personagem?.nick)
+    );
+
+    if(!ativos.length){
+      box.innerHTML='<div class="empty">Nenhum membro ativo.</div>';
+      return;
+    }
+
+    box.innerHTML=`
+      <div class="tablewrap">
+        <table>
+          <tr>
+            <th>Nick</th>
+            <th>Classe</th>
+            <th>CP</th>
+            <th>IFP</th>
+            <th>Perfil</th>
+            <th>Conta</th>
+          </tr>
+          ${ativos.map(u=>{
+            const nick=u.nick || u.personagem?.nick || 'Sem personagem';
+            const classe=u.classe || u.personagem?.classe || '—';
+            return `
+              <tr>
+                <td><b>${esc(nick)}</b></td>
+                <td>${esc(classe)}</td>
+                <td>—</td>
+                <td><span class="ifp-chip">—</span></td>
+                <td>${classe!=='—'?esc(profileForClass(classe)):'—'}</td>
+                <td class="ok">ATIVA</td>
+              </tr>
+            `;
+          }).join('')}
+        </table>
+      </div>
+    `;
+  }catch(e){
+    box.innerHTML=
+      '<div class="empty">Não foi possível carregar os membros: '+
+      esc(e.message||'erro desconhecido')+
+      '</div>';
+  }
+}
   const box = document.getElementById('approvals');
   if(!box) return;
 
