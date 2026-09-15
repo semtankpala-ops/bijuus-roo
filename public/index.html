@@ -87,7 +87,20 @@ let session=null;
 function db(){try{const d=JSON.parse(localStorage.getItem('bijuusDB')||'{"users":[],"snapshots":[],"medalSnapshots":[],"featherSnapshots":[]}');d.medalSnapshots??=[];d.featherSnapshots??=[];return d}catch(e){return {users:[],snapshots:[],medalSnapshots:[],featherSnapshots:[]}}}
 function saveDb(d){localStorage.setItem('bijuusDB',JSON.stringify(d))}
 let serverSnapshots=[];
-function toggleAuth(mode){document.getElementById('loginForm').classList.toggle('hidden',mode!=='login');document.getElementById('registerForm').classList.toggle('hidden',mode!=='register');document.getElementById('tabLogin').classList.toggle('active',mode==='login');document.getElementById('tabRegister').classList.toggle('active',mode==='register');document.getElementById('authMsg').style.display='none'}
+function toggleAuth(mode){
+  document.getElementById('loginForm').classList.toggle('hidden',mode!=='login');
+  document.getElementById('registerForm').classList.toggle('hidden',mode!=='register');
+  document.getElementById('tabLogin').classList.toggle('active',mode==='login');
+  document.getElementById('tabRegister').classList.toggle('active',mode==='register');
+  document.getElementById('authMsg').style.display='none';
+
+  if(mode==='register'){
+    const regClass=document.getElementById('regClass');
+    if(regClass && !regClass.options.length){
+      regClass.innerHTML=CLASSES.map(c=>`<option>${c}</option>`).join('');
+    }
+  }
+}
 function msg(text,ok){const e=document.getElementById('authMsg');e.textContent=text;e.style.display='block';e.style.background=ok?'#edf9f4':'#fff0f2';e.style.color=ok?'#167b58':'#a51e33'}
 async function doLogin(){try{const u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value;const user=await api('/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});session=user;document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');init();await loadServerState();await renderAllAsync();toast('Login realizado com segurança.')}catch(e){msg(e.message,false)}}
 async function register(){try{const username=document.getElementById('regUser').value.trim(),email=document.getElementById('regEmail').value.trim(),pass=document.getElementById('regPass').value,pass2=document.getElementById('regPass2').value,nick=document.getElementById('regNick').value.trim(),classe=document.getElementById('regClass').value;if(pass!==pass2)return msg('As senhas não conferem.',false);await api('/auth/register',{method:'POST',body:JSON.stringify({username,email,password:pass,nick,classe,nivel:99})});msg('Conta criada. Aguarde a aprovação da liderança.',true);setTimeout(()=>toggleAuth('login'),650)}catch(e){msg(e.message,false)}}
