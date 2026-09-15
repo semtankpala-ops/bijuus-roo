@@ -174,7 +174,15 @@ async function renderMembers(){
     const html=ativos.map(u=>`
       <tr>
         <td>${esc(u.username||'—')}</td>
-        <td>${esc(u.nick||'Sem personagem')}</td>
+        <td>
+  <button
+    class="btn ghost"
+    onclick="verStatusMembro('${u.id}')"
+    style="padding:6px 10px"
+  >
+    ${esc(u.nick||'Sem personagem')}
+  </button>
+</td>
         <td>${esc(u.classe||'—')}</td>
         <td>${u.cp?fmt(u.cp):'—'}</td>
         <td><span class="ifp-chip">${u.ifp??'—'}</span></td>
@@ -208,6 +216,85 @@ async function renderMembers(){
       '<div class="empty">Não foi possível carregar os membros.</div>';
   }
 }
+async function verStatusMembro(id){
+  try{
+    const rows = await api('/members/' + id + '/status');
+
+    if(!rows.length){
+      alert('Este membro ainda não possui nenhum snapshot de status.');
+      return;
+    }
+
+    const s = rows[0];
+
+    const atributos = Object.entries(s.status || {})
+      .map(([k,v]) => `
+        <div class="metric">
+          <span>${esc(k)}</span>
+          <b>${fmt(v)}</b>
+        </div>
+      `)
+      .join('');
+
+    document.getElementById('members').innerHTML = `
+      <div class="panel">
+        <div class="top">
+          <div>
+            <h2>${esc(s.nick || 'Sem personagem')}</h2>
+            <p>${esc(s.classe || '—')} • Nível ${s.nivel || '—'}</p>
+          </div>
+
+          <button class="btn" onclick="renderAllAsync()">
+            ← Voltar
+          </button>
+        </div>
+
+        <div class="status-summary">
+          <div class="mini">
+            <span class="label">CP</span>
+            <b>${s.cp ? fmt(s.cp) : '—'}</b>
+          </div>
+
+          <div class="mini">
+            <span class="label">Dano PvE</span>
+            <b>${s.dano_pve ? fmt(s.dano_pve) : '—'}</b>
+          </div>
+
+          <div class="mini">
+            <span class="label">Dano PvP</span>
+            <b>${s.dano_pvp ? fmt(s.dano_pvp) : '—'}</b>
+          </div>
+
+          <div class="mini">
+            <span class="label">IFP</span>
+            <b>${s.ifp ?? '—'}</b>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Atributos</h2>
+          ${atributos || '<div class="empty">Nenhum atributo informado.</div>'}
+        </div>
+
+        ${
+          s.observacao
+            ? `<div class="notice" style="margin-top:14px">
+                 <b>Observação:</b><br>${esc(s.observacao)}
+               </div>`
+            : ''
+        }
+
+        <div class="small" style="margin-top:14px">
+          Última atualização:
+          ${new Date(s.data_registro).toLocaleString('pt-BR')}
+        </div>
+      </div>
+    `;
+
+  }catch(e){
+    alert(e.message || 'Não foi possível carregar o status.');
+  }
+}  
 async function renderApprovals(d){
   const box = document.getElementById('approvals');
   if(!box) return;
