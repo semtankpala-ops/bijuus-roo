@@ -78,7 +78,7 @@
 const API='/api';
 async function api(path,opts={}){const r=await fetch(API+path,{credentials:'include',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});let data={};try{data=await r.json()}catch{}if(!r.ok)throw new Error(data.error||'Erro na API');return data;}
 
-const CLASSES=["Insurgente","Lorde","Paladino","Sumo Sacerdote","Mestre","Arquimago","Professor","Algoz","Desordeiro","Menestrel","Mestre-Ferreiro","Criador","Invocador (Doram)"];
+const CLASSES=["Insurgente","Lorde","Paladino","Sumo Sacerdote","Mestre","Arquimago","Professor","Algoz","Desordeiro","Menestrel","Mestre-Ferreiro","Criador","Invocador (Doram)","Arqueiro","Odalisca"];
 const COMMON=["PV","PM","ATQF","ATQM","ATQF (Refino)","ATQM (Refino)","DEFF","DEFM","DEFF (Refino)","DEFM (Refino)","Recuperar PV","Recuperar PM","Precisão","Esquiva"];
 const ADVANCED=["VATQ%","VMOV%","TC Variável","TC Variável %","TC Fixo","TC Fixo %","Efeito de Cura","Cura Recebida%","CRIT","RES CRIT","Dano CRIT%","RES Dano CRIT%","Bônus de Dano F%","Redução de Dano F%","Bônus de dano M","Redução de Dano M%","Ignorar DEFF","Ignorar DEFF%","Ignorar DEFM","Ignorar DEFM%","Bônus de dano F","Bônus de dano M","Redução de dano JxA","Bônus de dano JxA","Redução de dano JxJ","Bônus de dano JxJ"];
 const SPECIAL=["PV Máx%","PM Máx%","ATQF de Equipamento%","ATQM de Equipamento%","DEFF de Equipamento%","DEFM de Equipamento%","Dano x Inimigos Pequenos","Redução de Dano x Inimigos Pequenos","Dano x Inimigo Médio","Redução de Dano x Inimigos Médios","Dano x Inimigo Grande","Redução de Dano x Inimigos Grandes","Dano x Bruto","Dano x Humanoide","Redução de Dano x Humanoide"];
